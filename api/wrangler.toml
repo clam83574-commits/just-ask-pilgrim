@@ -14,12 +14,12 @@ TTS_VOICE = "nova"
 [[d1_databases]]
 binding = "DB"
 database_name = "pilgrim"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "354701e1-569b-4106-b13c-ff1d7e87b986"
 migrations_dir = "migrations"
 
 [[kv_namespaces]]
 binding = "CACHE"
-id = "00000000000000000000000000000000"
+id = "3d023c9a80fd47628b9b165d30f38368"
 
 [triggers]
 crons = ["*/5 * * * *"]
