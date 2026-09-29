@@ -1,0 +1,27 @@
+name = "pilgrim-api"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+APP_NAME = "Labbaik"
+WEBAPP_URL = "https://pilgrim-web.pages.dev"
+LLM_MODEL = "google/gemini-3.8-flash"
+STT_MODEL = "openai/gpt-4o-transcribe"
+TTS_MODEL = "openai/gpt-4o-mini-tts"
+TTS_VOICE = "nova"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pilgrim"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "00000000000000000000000000000000"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+# Секреты (wrangler secret put): BOT_TOKEN, OPENROUTER_API_KEY, INGEST_SECRET, BOT_WEBHOOK_SECRET

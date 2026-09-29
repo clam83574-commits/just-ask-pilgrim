@@ -1,0 +1,55 @@
+name: collect
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"    # загруженность и закрытые ворота
+    - cron: "17 2 * * *"     # точки карты — раз в сутки
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "live | map"
+        default: "live"
+
+concurrency:
+  group: collect-${{ github.event.schedule || github.event.inputs.mode }}
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Xray
+        run: |
+          curl -sSL -o xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
+          unzip -q xray.zip xray -d /usr/local/bin && chmod +x /usr/local/bin/xray
+
+      - name: Start Saudi proxy
+        env:
+          SUB_URL: ${{ secrets.SUB_URL }}
+          PROXY_URI: ${{ secrets.PROXY_URI }}
+          SERVER_HINT: ${{ vars.SERVER_HINT }}
+        run: |
+          python3 collector/xray_config.py > /tmp/xray.json
+          nohup xray run -c /tmp/xray.json > /tmp/xray.log 2>&1 &
+          for i in $(seq 1 20); do
+            country=$(curl -s --max-time 5 -x http://127.0.0.1:10809 https://ipinfo.io/country || true)
+            [ -n "$country" ] && break; sleep 1
+          done
+          echo "egress country: $country"
+          cat /tmp/xray.log | tail -5
+          [ "$country" = "SA" ] || echo "::warning::egress is '$country', not SA"
+
+      - name: Collect
+        env:
+          HTTPS_PROXY: http://127.0.0.1:10809
+          INGEST_URL: ${{ vars.INGEST_URL }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+        run: |
+          if [ "${{ github.event.schedule }}" = "17 2 * * *" ] || [ "${{ github.event.inputs.mode }}" = "map" ]; then
+            python3 collector/collect.py map
+          else
+            python3 collector/collect.py live
+          fi
