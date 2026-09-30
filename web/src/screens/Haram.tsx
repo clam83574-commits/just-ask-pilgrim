@@ -18,6 +18,12 @@ export default function HaramScreen() {
       <div className="stack">
         <div className="page-title">{city === 'makkah' ? 'Масджид аль-Харам' : 'Масджид ан-Набави'}</div>
         <CityToggle />
+        {crowd?.fetchedAt && now - Date.parse(crowd.fetchedAt) > 30 * 60000 && (
+          <div className="card tight row small" style={{ background: 'var(--mid-soft)', color: 'var(--mid)', boxShadow: 'none' }}>
+            <Clock size={16} style={{ flex: 'none' }} />
+            <span>Нет свежих данных от ведомства — показано состояние на {fmtTime(crowd.fetchedAt)} ({fmtAgo(crowd.fetchedAt, now)}).</span>
+          </div>
+        )}
         {!crowd ? (
           <div className="stack">{[1, 2, 3].map((i) => <div key={i} className="card"><Skel h={70} /></div>)}</div>
         ) : city === 'makkah' ? (

@@ -47,7 +47,13 @@ export async function nearbyPlaces(
   const origin = opts.lat != null && opts.lon != null ? { lat: opts.lat, lon: opts.lon } : CITIES[opts.city];
   const cat = PLACE_CATEGORIES[opts.category];
   let items: NearbyItem[] = [];
-  if (!cat || cat.source === 'official') {
+  // официальных туалетов ещё нет (приходят со сборщиком) — подставляем OpenStreetMap
+  let useOsm = cat?.source === 'osm';
+  if (opts.category === 'toilet') {
+    const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM pois WHERE city = ? AND category = ?').bind(opts.city, 'toilet').first<any>();
+    if (!n?.n) useOsm = true;
+  }
+  if (!useOsm) {
     const rows = (
       await env.DB.prepare('SELECT * FROM pois WHERE city = ? AND category = ?').bind(opts.city, opts.category).all<any>()
     ).results;

@@ -175,12 +175,17 @@ async function closedGateNumbers(env: Env): Promise<Set<number>> {
 export function crowdSummary(crowd: Awaited<ReturnType<typeof getCrowd>>, city: City): string {
   const zones = city === 'makkah' ? crowd.makkah : crowd.madinah;
   if (!zones.length) return 'Данных о загруженности пока нет.';
+  const ageMin = crowd.fetchedAt ? Math.round((Date.now() - Date.parse(crowd.fetchedAt)) / 60000) : null;
+  const stale = ageMin !== null && ageMin > 30
+    ? `ВНИМАНИЕ: связи с источником нет ${ageMin >= 120 ? `${Math.round(ageMin / 60)} ч` : `${ageMin} мин`} — данные ниже могут быть неактуальны, скажи об этом пользователю.
+`
+    : '';
   if (city === 'madinah') {
     const high = zones.filter((z) => z.status === 3).map((z) => z.name);
     const mid = zones.filter((z) => z.status === 2).map((z) => z.name);
-    return `Масджид ан-Набави, 13 молельных зон: многолюдно — ${high.join(', ') || 'нигде'}; средне — ${mid.join(', ') || 'нигде'}; остальные свободны.`;
+    return `${stale}Масджид ан-Набави, 13 молельных зон: многолюдно — ${high.join(', ') || 'нигде'}; средне — ${mid.join(', ') || 'нигде'}; остальные свободны.`;
   }
-  return zones
+  return stale + zones
     .map((z) => {
       const age = z.sourceUpdatedAt ? Math.round((Date.now() - Date.parse(z.sourceUpdatedAt)) / 60000) : null;
       const t = z.minutes ? `, ${z.kind === 'sai' ? 'весь саъй (7 проходов)' : 'весь таваф (7 кругов)'} ~${z.minutes} мин` : '';

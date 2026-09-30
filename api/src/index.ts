@@ -5,7 +5,7 @@ import { asCity, nowIso } from './env';
 import { escapeHtml, openAppButton, sendMessage, tg, verifyInitData } from './telegram';
 import { getCrowd, normalizePrayerZones, normalizeTawafSai, upsertZones, crowdSummary, STATUS_LABEL } from './crowd';
 import { getPrayer } from './prayer';
-import { getRates, getWeather } from './external';
+import { getOsmPlaces, getRates, getWeather } from './external';
 import { nearbyPlaces, placeCounts } from './places';
 import { assistant, LANGUAGES, synthesize, transcribe, translate, whatNext } from './ai';
 import {
@@ -319,6 +319,17 @@ export default {
   fetch: app.fetch,
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil(sendReminders(env).catch((e) => console.error('reminders', e)));
+    // прогрев мест из OSM: раз в ~12 ч обновляем заранее, чтобы пользователь не ждал Overpass
+    ctx.waitUntil(
+      (async () => {
+        for (const city of ['makkah', 'madinah'] as const) {
+          const warmedKey = `osm-warm:${city}`;
+          if (await env.CACHE.get(warmedKey)) continue;
+          const places = await getOsmPlaces(env, city, true);
+          if (places.length) await env.CACHE.put(warmedKey, '1', { expirationTtl: 12 * 3600 });
+        }
+      })().catch((e) => console.error('osm warm', e)),
+    );
   },
 };
 

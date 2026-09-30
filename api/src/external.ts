@@ -57,7 +57,7 @@ export async function getWeather(env: Env, city: City) {
 
 export interface Place {
   id: string;
-  category: 'food' | 'exchange' | 'pharmacy';
+  category: 'food' | 'exchange' | 'pharmacy' | 'toilet';
   name: string;
   nameAr?: string;
   lat: number;
@@ -80,8 +80,36 @@ const CUISINE_RU: Record<string, string> = {
 
 export const cuisineRu = (c: string) => CUISINE_RU[c] ?? c;
 
-export async function getOsmPlaces(env: Env, city: City): Promise<Place[]> {
-  return cached(env, `osm:${city}:v2`, 24 * 3600, async () => {
+const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+
+/**
+ * Места из OSM: свежая копия живёт 24 ч, последняя удачная — бессрочно.
+ * Если Overpass недоступен — отдаём последнюю удачную копию, пользователь не ждёт и не видит пустоту.
+ */
+export async function getOsmPlaces(env: Env, city: City, force = false): Promise<Place[]> {
+  const freshKey = `osm:${city}:v3`;
+  const lastKey = `osm:${city}:last`;
+  if (!force) {
+    const fresh = await env.CACHE.get<Place[]>(freshKey, 'json');
+    if (fresh) return fresh;
+  }
+  try {
+    const places = await loadOsm(city);
+    if (places.length) {
+      await Promise.all([
+        env.CACHE.put(freshKey, JSON.stringify(places), { expirationTtl: 24 * 3600 }),
+        env.CACHE.put(lastKey, JSON.stringify(places)),
+      ]);
+    }
+    return places;
+  } catch (e) {
+    console.error('osm', city, e);
+    return (await env.CACHE.get<Place[]>(lastKey, 'json')) ?? [];
+  }
+}
+
+async function loadOsm(city: City): Promise<Place[]> {
+  {
     const c = CITIES[city];
     // 7 км — чтобы захватить Азизию, где много узбекских и казахских заведений
     const q = `[out:json][timeout:60];(
@@ -89,14 +117,24 @@ export async function getOsmPlaces(env: Env, city: City): Promise<Place[]> {
       nwr["amenity"="bureau_de_change"](around:5000,${c.lat},${c.lon});
       nwr["shop"="money_transfer"](around:5000,${c.lat},${c.lon});
       nwr["amenity"="pharmacy"](around:3000,${c.lat},${c.lon});
+      nwr["amenity"="toilets"](around:2500,${c.lat},${c.lon});
     );out center tags;`;
-    const res = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded', 'user-agent': 'pilgrim-miniapp/1.0' },
-      body: 'data=' + encodeURIComponent(q),
-    });
-    if (!res.ok) throw new Error(`overpass ${res.status}`);
-    const data: any = await res.json();
+    let data: any = null;
+    for (const url of OVERPASS) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded', 'user-agent': 'just-ask-pilgrim/1.0' },
+          body: 'data=' + encodeURIComponent(q),
+        });
+        if (!res.ok) continue;
+        data = await res.json();
+        if (data?.elements?.length) break;
+      } catch {
+        /* следующее зеркало */
+      }
+    }
+    if (!data?.elements?.length) throw new Error('all overpass mirrors failed');
     const out: Place[] = [];
     for (const el of data.elements ?? []) {
       const t = el.tags ?? {};
@@ -104,7 +142,7 @@ export async function getOsmPlaces(env: Env, city: City): Promise<Place[]> {
       const lon = el.lon ?? el.center?.lon;
       if (lat == null || lon == null) continue;
       const amenity = t.amenity ?? t.shop;
-      const category = amenity === 'pharmacy' ? 'pharmacy' : amenity === 'bureau_de_change' || amenity === 'money_transfer' ? 'exchange' : 'food';
+      const category = amenity === 'toilets' ? 'toilet' : amenity === 'pharmacy' ? 'pharmacy' : amenity === 'bureau_de_change' || amenity === 'money_transfer' ? 'exchange' : 'food';
       const name = t['name:en'] || t['name:ru'] || t.name || t.brand || '';
       if (!name && category === 'food') continue;
       const cuisine = String(t.cuisine ?? '').split(/[;,]/).map((s: string) => s.trim().toLowerCase()).filter(Boolean);
@@ -112,14 +150,14 @@ export async function getOsmPlaces(env: Env, city: City): Promise<Place[]> {
       out.push({
         id: `osm:${el.type}:${el.id}`,
         category,
-        name: name || (category === 'exchange' ? 'Обменный пункт' : 'Аптека'),
+        name: name || (category === 'exchange' ? 'Обменный пункт' : category === 'toilet' ? (t.female === 'yes' && t.male !== 'yes' ? 'Туалет (женский)' : t.male === 'yes' && t.female !== 'yes' ? 'Туалет (мужской)' : 'Туалет') : 'Аптека'),
         nameAr: t['name:ar'] || (/[؀-ۿ]/.test(t.name ?? '') ? t.name : undefined),
         lat, lon, cuisine, homeFood,
         tags: { opening_hours: t.opening_hours, phone: t.phone || t['contact:phone'], website: t.website, brand: t.brand },
       });
     }
     return out;
-  });
+  }
 }
 
 // ---------------- Курсы валют ----------------
