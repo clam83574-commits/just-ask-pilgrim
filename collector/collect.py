@@ -186,7 +186,10 @@ def live():
     except Exception as exc:
         payload["prayerZonesError"] = repr(exc)
     ingest(payload)
-    # закрытые ворота: узлы карты Мекки
+    # закрытые ворота: узлы карты Мекки — раз в 30 минут, чтобы не злить защиту сервера карты
+    import time
+    if time.gmtime().tm_min % 30 >= 5 and not os.environ.get("FORCE_MAP"):
+        return
     try:
         token = map_token()
         ingest({"pois": gate_nodes(token, "makkah", CAMPUSES["makkah"])})
