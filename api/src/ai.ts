@@ -21,7 +21,13 @@ export async function chatCompletion(env: Env, body: Record<string, unknown>): P
   const res = await fetch(`${OR_BASE}/chat/completions`, {
     method: 'POST',
     headers: orHeaders(env),
-    body: JSON.stringify({ model: env.LLM_MODEL, ...body }),
+    // Gemini 3.x — «думающая» модель: минимальные рассуждения дают ответ за ~3 с и не съедают лимит токенов
+    body: JSON.stringify({
+      model: env.LLM_MODEL,
+      reasoning: { effort: 'minimal', exclude: true },
+      ...body,
+      max_tokens: Math.max(Number(body.max_tokens ?? 0), 1200),
+    }),
   });
   const data: any = await res.json().catch(() => null);
   if (!res.ok || !data?.choices) throw new Error(`LLM ${res.status}: ${JSON.stringify(data?.error ?? data).slice(0, 300)}`);
@@ -216,7 +222,21 @@ async function runTool(env: Env, ctx: AssistantCtx, name: string, args: any): Pr
   }
 }
 
-function systemPrompt(env: Env, ctx: AssistantCtx): string {
+/** Живой контекст прямо в промпте — чтобы на типичные вопросы отвечать без вызова инструментов (быстрее для звонка). */
+async function liveContext(env: Env, city: City): Promise<string> {
+  const [crowd, weather] = await Promise.all([getCrowd(env).catch(() => null), getWeather(env, city).catch(() => null)]);
+  const p = getPrayer(city);
+  const lines = [
+    `Намазы сегодня (${CITIES[city].name}): ${p.today.map((x) => `${x.name} ${fmtRiyadh(x.time)}`).join(', ')}. Следующий: ${p.next.name} через ${p.next.minutesLeft} мин. Хиджра: ${p.hijri}.`,
+    crowd ? `Загруженность (${CITIES[city].name}):\n${crowdSummary(crowd, city)}` : '',
+    weather ? `Погода: ${Math.round(weather.temp)}°, ощущается ${Math.round(weather.feels)}°, УФ ${weather.uv}.` : '',
+  ];
+  return lines.filter(Boolean).join('\n');
+}
+
+const fmtRiyadh = (iso: string) => new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Riyadh' }).format(new Date(iso));
+
+function systemPrompt(env: Env, ctx: AssistantCtx, live = ''): string {
   const now = new Intl.DateTimeFormat('ru-RU', { dateStyle: 'full', timeStyle: 'short', timeZone: 'Asia/Riyadh' }).format(new Date());
   return [
     `Ты — ${env.APP_NAME}, заботливый помощник паломника в Мекке и Медине (Умра и Хадж). Пользователи — в основном из Казахстана, Узбекистана, Кыргызстана, Таджикистана, России.`,
@@ -229,6 +249,10 @@ function systemPrompt(env: Env, ctx: AssistantCtx): string {
     '- Загруженность — официальный статус ведомства; упоминай, если он обновлялся давно.',
     '- Фикх и обряды: отвечай кратко по общепринятому (у большинства пользователей ханафитский мазхаб), в спорных вопросах советуй уточнить у руководителя группы или имама. Не выноси фетв.',
     '- При угрозе здоровью — сразу номер 911 (единая экстренная служба) или 997 (скорая).',
+    '- Не используй markdown-разметку (звёздочки, решётки). Для списков — строки, начинающиеся с «• ».',
+    live ? `
+Актуальные данные (используй их, инструменты вызывай только если нужно больше):
+${live}` : '',
     ctx.voice
       ? '- Это голосовой разговор: отвечай коротко, 1–3 предложения, без списков, markdown, эмодзи и ссылок. Числа пиши словами, если так естественнее.'
       : '- Это чат: отвечай компактно, можно короткие списки. Без длинных вступлений.',
@@ -236,7 +260,8 @@ function systemPrompt(env: Env, ctx: AssistantCtx): string {
 }
 
 export async function assistant(env: Env, ctx: AssistantCtx, history: { role: 'user' | 'assistant'; content: string }[]) {
-  const messages: any[] = [{ role: 'system', content: systemPrompt(env, ctx) }, ...history.slice(-12)];
+  const live = await liveContext(env, ctx.city).catch(() => '');
+  const messages: any[] = [{ role: 'system', content: systemPrompt(env, ctx, live) }, ...history.slice(-12)];
   const used: string[] = [];
   for (let step = 0; step < 4; step++) {
     const data = await chatCompletion(env, { messages, tools: TOOLS, temperature: 0.4, max_tokens: ctx.voice ? 300 : 800 });

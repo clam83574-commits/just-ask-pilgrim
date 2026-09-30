@@ -19,14 +19,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
+      - name: Check proxy config
+        id: check
+        env:
+          SUB_URL: ${{ secrets.SUB_URL }}
+          PROXY_URI: ${{ secrets.PROXY_URI }}
+        run: |
+          if [ -z "$SUB_URL$PROXY_URI" ]; then echo "::notice::Саудовский прокси не настроен — пропускаю"; echo "ok=false" >> "$GITHUB_OUTPUT"; else echo "ok=true" >> "$GITHUB_OUTPUT"; fi
+
       - uses: actions/checkout@v4
+        if: steps.check.outputs.ok == 'true'
 
       - name: Install Xray
+        if: steps.check.outputs.ok == 'true'
         run: |
           curl -sSL -o xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
           unzip -q xray.zip xray -d /usr/local/bin && chmod +x /usr/local/bin/xray
 
       - name: Start Saudi proxy
+        if: steps.check.outputs.ok == 'true'
         env:
           SUB_URL: ${{ secrets.SUB_URL }}
           PROXY_URI: ${{ secrets.PROXY_URI }}
@@ -43,6 +54,7 @@ jobs:
           [ "$country" = "SA" ] || echo "::warning::egress is '$country', not SA"
 
       - name: Collect
+        if: steps.check.outputs.ok == 'true'
         env:
           HTTPS_PROXY: http://127.0.0.1:10809
           INGEST_URL: ${{ vars.INGEST_URL }}

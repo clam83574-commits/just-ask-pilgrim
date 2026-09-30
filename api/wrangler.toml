@@ -4,12 +4,13 @@ compatibility_date = "2026-09-01"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-APP_NAME = "Labbaik"
+APP_NAME = "Just Ask"
+BOT_USERNAME = "just_ask_ai_bot"
 WEBAPP_URL = "https://pilgrim-web.pages.dev"
 LLM_MODEL = "google/gemini-3.8-flash"
 STT_MODEL = "openai/gpt-4o-transcribe"
-TTS_MODEL = "openai/gpt-4o-mini-tts"
-TTS_VOICE = "nova"
+TTS_MODEL = "x-ai/grok-voice-tts-1.0"
+TTS_VOICE = "ara"
 
 [[d1_databases]]
 binding = "DB"

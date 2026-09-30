@@ -183,7 +183,7 @@ export function crowdSummary(crowd: Awaited<ReturnType<typeof getCrowd>>, city: 
   return zones
     .map((z) => {
       const age = z.sourceUpdatedAt ? Math.round((Date.now() - Date.parse(z.sourceUpdatedAt)) / 60000) : null;
-      const t = z.minutes ? `, ${z.kind === 'sai' ? 'саъй' : 'таваф'} ~${z.minutes} мин` : '';
+      const t = z.minutes ? `, ${z.kind === 'sai' ? 'весь саъй (7 проходов)' : 'весь таваф (7 кругов)'} ~${z.minutes} мин` : '';
       const g = z.gates.length ? `, ворота ${z.gates.join(', ')}` : '';
       const cg = z.closedGates.length ? ` (закрыты: ${z.closedGates.join(', ')})` : '';
       return `${z.name}: ${z.statusLabel}${t}${g}${cg}${age !== null ? `, статус обновлён ${age} мин назад` : ''}`;

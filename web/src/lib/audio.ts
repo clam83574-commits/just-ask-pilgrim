@@ -219,7 +219,7 @@ export function splitForSpeech(text: string): string[] {
 /** Озвучить текст: куски синтезируются параллельно, играют по очереди. */
 export async function speak(text: string, opts: { voice?: string; onStart?: () => void } = {}): Promise<void> {
   stopped = false;
-  const parts = splitForSpeech(text);
+  const parts = splitForSpeech(cleanText(text).replace(/^•\s*/gm, ''));
   const blobs = parts.map((p) => ttsBlob(p, opts.voice));
   let started = false;
   for (const b of blobs) {
@@ -236,3 +236,7 @@ export async function speak(text: string, opts: { voice?: string; onStart?: () =
 }
 
 export const isSpeaking = () => !player.paused && !player.ended;
+
+/** Убирает markdown-разметку, если модель всё же её прислала. */
+export const cleanText = (t: string) =>
+  t.replace(/\*\*(.+?)\*\*/g, '$1').replace(/^#{1,6}\s*/gm, '').replace(/^\s*[*-]\s+/gm, '• ').replace(/[*_`]/g, '');

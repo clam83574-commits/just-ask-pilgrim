@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUp, Mic, MicOff, Phone, PhoneOff, Square, Volume2 } from 'lucide-react';
 import { api } from '../lib/api';
-import { Recorder, releaseMic, speak, stopSpeaking, transcribe, unlockAudio } from '../lib/audio';
+import { cleanText, Recorder, releaseMic, speak, stopSpeaking, transcribe, unlockAudio } from '../lib/audio';
 import { useLocation, useLocalStorage } from '../lib/hooks';
 import { haptic, setBackButton } from '../lib/tg';
 import { useApp } from '../components/ui';
@@ -131,7 +131,7 @@ export default function AssistantScreen() {
         <div className="chat mt16">
           {messages.map((m, i) => (
             <div key={i} className={`bubble ${m.role === 'user' ? 'me' : 'bot'}`}>
-              {m.content}
+              {m.role === 'assistant' ? cleanText(m.content) : m.content}
               {m.role === 'assistant' && (
                 <button className="tiny muted" style={{ display: 'block', marginTop: 6 }} onClick={() => { unlockAudio(); speak(m.content); }}>
                   <Volume2 size={13} style={{ verticalAlign: -2 }} /> озвучить
@@ -247,7 +247,7 @@ function CallMode({ onClose, ask, getHistory }: {
         historyRef.current = [...historyRef.current, { role: 'user', content: said }, { role: 'assistant', content: answer }];
         if (!active.current) break;
         setState('speaking');
-        setCaption(answer);
+        setCaption(cleanText(answer));
         await speak(answer);
       }
     };

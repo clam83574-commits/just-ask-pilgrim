@@ -28,7 +28,7 @@ def b64decode(s: str) -> str:
 def load_links() -> list:
     if os.environ.get("PROXY_URI"):
         return [os.environ["PROXY_URI"].strip()]
-    req = urllib.request.Request(os.environ["SUB_URL"], headers={"User-Agent": "Happ/2.0"})
+    req = urllib.request.Request(os.environ["SUB_URL"], headers={"User-Agent": "v2rayNG/1.9.0"})
     raw = urllib.request.urlopen(req, timeout=30).read().decode("utf-8", errors="ignore").strip()
     text = raw if "://" in raw[:20] else b64decode(raw)
     return [line.strip() for line in text.splitlines() if "://" in line]
