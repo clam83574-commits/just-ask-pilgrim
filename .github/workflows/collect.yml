@@ -24,8 +24,9 @@ jobs:
         env:
           SUB_URL: ${{ secrets.SUB_URL }}
           PROXY_URI: ${{ secrets.PROXY_URI }}
+          XRAY_CONFIG: ${{ secrets.XRAY_CONFIG }}
         run: |
-          if [ -z "$SUB_URL$PROXY_URI" ]; then echo "::notice::Саудовский прокси не настроен — пропускаю"; echo "ok=false" >> "$GITHUB_OUTPUT"; else echo "ok=true" >> "$GITHUB_OUTPUT"; fi
+          if [ -z "$SUB_URL$PROXY_URI$XRAY_CONFIG" ]; then echo "::notice::Саудовский прокси не настроен — пропускаю"; echo "ok=false" >> "$GITHUB_OUTPUT"; else echo "ok=true" >> "$GITHUB_OUTPUT"; fi
 
       - uses: actions/checkout@v4
         if: steps.check.outputs.ok == 'true'
@@ -41,9 +42,14 @@ jobs:
         env:
           SUB_URL: ${{ secrets.SUB_URL }}
           PROXY_URI: ${{ secrets.PROXY_URI }}
+          XRAY_CONFIG: ${{ secrets.XRAY_CONFIG }}
           SERVER_HINT: ${{ vars.SERVER_HINT }}
         run: |
-          python3 collector/xray_config.py > /tmp/xray.json
+          if [ -n "$XRAY_CONFIG" ]; then
+            printf '%s' "$XRAY_CONFIG" > /tmp/xray.json
+          else
+            python3 collector/xray_config.py > /tmp/xray.json
+          fi
           nohup xray run -c /tmp/xray.json > /tmp/xray.log 2>&1 &
           for i in $(seq 1 20); do
             country=$(curl -s --max-time 5 -x http://127.0.0.1:10809 https://ipinfo.io/country || true)
