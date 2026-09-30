@@ -192,6 +192,38 @@ def map_sync():
             print(f"{city} pois failed:", repr(exc))
 
 
+def probe():
+    """Диагностика: печатает структуру ответов карты (публичные данные)."""
+    token = map_token()
+    h = map_headers(token, CAMPUSES["makkah"])
+    bodies = {
+        "polys_all": {"languageCode": "", "useEntranceGateAsCenter": True, "VenueID": None, "FloorID": None,
+                      "LastUpdateDate": LAST_UPDATE, "filterParameters": {"categoryIds": [], "amenityIds": []}},
+        "polys_cat1": {"languageCode": "", "useEntranceGateAsCenter": True, "VenueID": None, "FloorID": None,
+                       "LastUpdateDate": LAST_UPDATE, "filterParameters": {"categoryIds": [1], "amenityIds": []}},
+        "polys_venue6": {"languageCode": "", "useEntranceGateAsCenter": True, "VenueID": 6, "FloorID": 28,
+                         "LastUpdateDate": LAST_UPDATE, "filterParameters": {"categoryIds": [], "amenityIds": []}},
+    }
+    for name, body in bodies.items():
+        try:
+            r = request(f"{MAP_API}/DataAPI.svc/GetPoIPolygons", body, h, timeout=120)
+            txt = json.dumps(r, ensure_ascii=False)
+            print(f"== {name}: type={type(r).__name__} len={len(txt)} keys={list(r.keys()) if isinstance(r, dict) else None}")
+            print(txt[:1500])
+        except Exception as exc:
+            print(f"== {name}: ERROR {exc!r}")
+    try:
+        r = request(f"{MAP_API}/DataAPI.svc/getPoIById", {"LanguageCode": "", "ID": 33, "useEntranceGateAsCenter": True}, h, timeout=60)
+        print("== poi33", json.dumps(r, ensure_ascii=False)[:2500])
+    except Exception as exc:
+        print("== poi33 ERROR", repr(exc))
+    try:
+        r = request(f"{MAP_API}/DataAPI.svc/GetVenueFloors", {"LanguageCode": "", "id": 6, "LastUpdateDate": LAST_UPDATE}, h, timeout=60)
+        print("== floors6", json.dumps(r, ensure_ascii=False)[:1500])
+    except Exception as exc:
+        print("== floors6 ERROR", repr(exc))
+
+
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "live"
-    {"live": live, "map": map_sync}[mode]()
+    {"live": live, "map": map_sync, "probe": probe}[mode]()
