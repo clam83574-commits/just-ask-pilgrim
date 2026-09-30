@@ -14,6 +14,7 @@ import json
 import os
 import ssl
 import sys
+import urllib.error
 import urllib.request
 
 TAWAF_SAI_URL = "https://trasul.gph.gov.sa/haram-api/public/api/pry/TawafSaiStatus"
@@ -44,7 +45,21 @@ _saudi = urllib.request.build_opener(
 _direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
-def request(url, body=None, headers=None, via_saudi=True, timeout=60):
+def request(url, body=None, headers=None, via_saudi=True, timeout=60, attempts=3):
+    """Запрос с повторами: VPN-туннель иногда рвёт соединение."""
+    import time
+    for i in range(attempts):
+        try:
+            return _request(url, body, headers, via_saudi, timeout)
+        except urllib.error.HTTPError:
+            raise
+        except Exception:
+            if i == attempts - 1:
+                raise
+            time.sleep(3 * (i + 1))
+
+
+def _request(url, body=None, headers=None, via_saudi=True, timeout=60):
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(url, data=data, method="POST" if data else "GET")
     req.add_header("User-Agent", UA)
@@ -134,6 +149,10 @@ def map_pois(token, city, campus):
     if isinstance(records, dict):
         records = next((v for v in records.values() if isinstance(v, list)), [])
     items = []
+    if not records:
+        print("GetPoIPolygons: пусто, структура ответа:", json.dumps(res, ensure_ascii=False)[:1500])
+    elif isinstance(records, list):
+        print("GetPoIPolygons sample:", json.dumps(records[0], ensure_ascii=False)[:1500])
     for r in records:
         cat_obj = r.get("primaryCategory") or {}
         cat_id = cat_obj.get("id") or r.get("primaryCategoryId") or r.get("CategoryID")
