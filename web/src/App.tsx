@@ -4,7 +4,7 @@ import { AppContext, Toast, type NavParams, type Tab } from './components/ui';
 import { KaabaIcon } from './components/KaabaIcon';
 import { useLocalStorage } from './lib/hooks';
 import { api, type City } from './lib/api';
-import { haptic, startParam } from './lib/tg';
+import { haptic, inTelegram, startParam } from './lib/tg';
 import NowScreen from './screens/Now';
 
 const HaramScreen = lazy(() => import('./screens/Haram'));
@@ -22,7 +22,32 @@ const TABS: { key: Tab; label: string; icon: (on: boolean) => React.ReactNode }[
   { key: 'group', label: 'Группа', icon: () => <Users size={22} /> },
 ];
 
+function OpenInTelegram() {
+  return (
+    <div className="screen" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', paddingBottom: 16 }}>
+      <div className="hero center" style={{ maxWidth: 380, padding: 28 }}>
+        <div className="hero-pattern" />
+        <div style={{ position: 'relative' }}>
+          <KaabaIcon size={44} stroke="#f1d58a" />
+          <div className="mt12" style={{ fontSize: 24, fontWeight: 750 }}>Just Ask</div>
+          <div className="mt8" style={{ opacity: 0.9 }}>
+            Помощник паломника в Мекке и Медине: загруженность Харама, места рядом, голосовой ассистент и переводчик.
+          </div>
+          <a className="btn mt16" style={{ background: '#f1d58a', color: '#3a2c07', textDecoration: 'none' }} href="https://t.me/just_ask_ai_bot">
+            Открыть в Telegram
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
+  if (import.meta.env.PROD && !inTelegram) return <OpenInTelegram />;
+  return <MainApp />;
+}
+
+function MainApp() {
   const [city, setCityState] = useLocalStorage<City>('city', 'makkah');
   const initialTab: Tab = startParam()?.startsWith('g_') ? 'group' : 'now';
   const [tab, setTab] = useState<Tab>(initialTab);
